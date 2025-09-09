@@ -1,14 +1,14 @@
 __author__ = "Lech Szymanski"
 __organization__ = "COSC343/AIML402, University of Otago"
 __email__ = "lech.szymanski@otago.ac.nz"
-__date__ = "August 2025s"
+__date__ = "August 2025"
 
 # You can manipulate these defaults to change the game parameters.
 
 game_settings = {
 
    #File implementing the agent playing as player 1
-   "player1": "random_agent.py",
+   "player1": "my_agent.py",
 
    # File implementing the agent playing as player 2
    "player2": "random_agent.py",
@@ -23,7 +23,7 @@ game_settings = {
    "nTurns": 100,
 
    # Speed of visualisation ('slow','normal','fast')
-   "visSpeed": 'normal',
+   "visSpeed": 'fast',
 
    # Visualisation resolution
    "visResolution": (720, 480),

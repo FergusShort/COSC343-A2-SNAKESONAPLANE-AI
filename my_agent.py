@@ -2,10 +2,11 @@ __author__ = "<your name>"
 __organization__ = "COSC343/AIML402, University of Otago"
 __email__ = "<your e-mail>"
 
+import random
 import numpy as np
 
 agentName = "<my_agent>"
-trainingSchedule = [("self", 1), ("random", 1)]
+trainingSchedule = [("self", 200), ("random", 200)]
 
 # This is the class for your snake/agent
 class Snake:
@@ -19,6 +20,9 @@ class Snake:
 
         self.nPercepts = nPercepts
         self.actions = actions
+        n_inputs = nPercepts
+        n_outputs = len(actions)
+        self.chromosome = np.random.uniform( low=-1.0, high=1.0, size=(n_inputs * n_outputs + n_outputs,) )
 
 
 
@@ -37,9 +41,26 @@ class Snake:
          .
          .
         ''' 
+        n_inputs = self.nPercepts
+        n_outputs = len(self.actions)
 
-        index = 1 # Current code always chose the action to move forward
+        flat_percepts = percepts.flatten()  # shape (49,)
+
+        # Step 1: Extract weights and biases from chromosome
+
+        weights = self.chromosome[:n_inputs * n_outputs].reshape(n_inputs, n_outputs)
+        biases = self.chromosome[n_inputs * n_outputs:]
+
+        # Step 2: Compute action scores
+        # Matrix multiplication: percepts (shape nPercepts,) x weights (shape nPercepts x num_actions)
+        action_scores = flat_percepts @ weights + biases
+
+        # Step 3: Pick the action with the highest score
+        index = np.argmax(action_scores)
+
+        # Step 4: Return the actual action
         return self.actions[index]
+
 
 def evalFitness(population):
 
@@ -75,17 +96,30 @@ def evalFitness(population):
         # The following two lines demonstrate how to 
         # extract other information from snake.sizes
         turnsAlive = np.sum(snake.sizes > 0)
-        maxTurns = len(snake.sizes)
+        # maxTurns = len(snake.sizes)
+        timesBitten = np.sum(snake.bitten)
+        # friendlyAttacks = np.sum(snake.friend_attacks)
+        enemyAttacks = np.sum(snake.enemy_attacks)
+        foodEaten = np.sum(snake.foods)
+        friendlyCrashes = np.sum(snake.friend_crashes)
+        enemyCrashes = np.sum(snake.enemy_crashes)
 
         '''
          This fitness functions only considers the average snake size
         '''
-        fitness[n] = meanSize
+        fitness[n] = (meanSize * 2) + (foodEaten * 5) + (turnsAlive * 0.1) + (enemyAttacks * 3) - (timesBitten * 2) - (friendlyCrashes * 1) - (enemyCrashes * 2)
 
     return fitness
 
 
-def newGeneration(old_population):
+
+def tournament_selection(population, fitnesses, k=3):
+    selected = random.sample(list(zip(population, fitnesses)), k)
+    return max(selected, key=lambda x: x[1])[0].chromosome
+
+
+
+def newGeneration(old_population, mutation_rate=0.1, tournament_k=3):
 
     '''
      This function must return a tuple consisting of:
@@ -102,22 +136,27 @@ def newGeneration(old_population):
 
     # Create new population list...
     new_population = list()
-    for n in range(N):
 
-        # Create a new snake
+    for _ in range(N):
+        # --- Select parents ---
+        parent1_chrom = tournament_selection(old_population, fitness, tournament_k)
+        parent2_chrom = tournament_selection(old_population, fitness, tournament_k)
+
+        # --- Crossover ---
+        crossover_point = random.randint(1, len(parent1_chrom)-1)
+        child_chrom = np.concatenate([parent1_chrom[:crossover_point], 
+                                      parent2_chrom[crossover_point:]])
+
+        # --- Mutation ---
+        if random.random() < mutation_rate:
+            mutation_point = random.randint(0, len(child_chrom)-1)
+            # Small Gaussian mutation
+            child_chrom[mutation_point] += np.random.randn() * 0.1
+
+        # --- Create new snake with this chromosome ---
         new_snake = Snake(nPercepts, actions)
+        new_snake.chromosome = child_chrom
 
-        '''
-         Here you should modify the new snakes chromosome by selecting two parents (based on their
-         fitness) and crossing their chromosome to overwrite new_snake.chromosome
-
-         Consider implementing elitism, mutation and various other
-         strategies for producing a new creature.
-
-         .
-         .
-         .
-        '''
 
         # Add the new snake to the new population
         new_population.append(new_snake)
