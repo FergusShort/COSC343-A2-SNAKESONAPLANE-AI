@@ -6,9 +6,11 @@ import random
 import numpy as np
 
 agentName = "<my_agent>"
-trainingSchedule = [("self", 200), ("random", 200)]
-
-# This is the class for your snake/agent
+trainingSchedule = [("self", 100), ("random", 100),("self", 100),("random", 100),("self", 100)]
+# trainingSchedule = [("self", 50), ("random", 50), ("self", 50), ("random", 50), ("self", 50), ("random", 50), ("self", 50), ("random", 50), ("self", 50), ("random", 50)]
+# trainingSchedule = [("self", 200), ("random", 200)]
+# trainingSchedule = [("random", 500)]
+# trainingSchedule = [("self", 500)]
 class Snake:
 
     def __init__(self, nPercepts, actions):
@@ -46,19 +48,15 @@ class Snake:
 
         flat_percepts = percepts.flatten()  # shape (49,)
 
-        # Step 1: Extract weights and biases from chromosome
 
         weights = self.chromosome[:n_inputs * n_outputs].reshape(n_inputs, n_outputs)
         biases = self.chromosome[n_inputs * n_outputs:]
 
-        # Step 2: Compute action scores
-        # Matrix multiplication: percepts (shape nPercepts,) x weights (shape nPercepts x num_actions)
+
         action_scores = flat_percepts @ weights + biases
 
-        # Step 3: Pick the action with the highest score
         index = np.argmax(action_scores)
 
-        # Step 4: Return the actual action
         return self.actions[index]
 
 
@@ -98,16 +96,19 @@ def evalFitness(population):
         turnsAlive = np.sum(snake.sizes > 0)
         # maxTurns = len(snake.sizes)
         timesBitten = np.sum(snake.bitten)
-        # friendlyAttacks = np.sum(snake.friend_attacks)
         enemyAttacks = np.sum(snake.enemy_attacks)
         foodEaten = np.sum(snake.foods)
         friendlyCrashes = np.sum(snake.friend_crashes)
+        friendAttacks = np.sum(snake.friend_attacks)
         enemyCrashes = np.sum(snake.enemy_crashes)
 
         '''
          This fitness functions only considers the average snake size
         '''
-        fitness[n] = (meanSize * 2) + (foodEaten * 5) + (turnsAlive * 0.1) + (enemyAttacks * 3) - (timesBitten * 2) - (friendlyCrashes * 1) - (enemyCrashes * 2)
+        fitness[n] = (meanSize * 2) + (foodEaten * 5) + (turnsAlive * 0.1) + (enemyAttacks * 3) - (timesBitten * 2) - (friendlyCrashes * 1) - (enemyCrashes * 2) - (friendAttacks * 1)        
+        # fitness[n] = meanSize
+        # fitness[n] = foodEaten
+        # fitness[n] = meanSize + foodEaten
 
     return fitness
 
@@ -119,49 +120,54 @@ def tournament_selection(population, fitnesses, k=3):
 
 
 
-def newGeneration(old_population, mutation_rate=0.1, tournament_k=3):
 
-    '''
-     This function must return a tuple consisting of:
-     - a list of the new_population of snakes that is of the same length as the old_population,
-     - the average fitness of the old population
-    '''
+
+def newGeneration(old_population, mutation_rate=0, tournament_k=3, elitism=4):
+
     N = len(old_population)
-
     nPercepts = old_population[0].nPercepts
     actions = old_population[0].actions
 
-
+    # Evaluate current population
     fitness = evalFitness(old_population)
+    avg_fitness = np.mean(fitness)
 
-    # Create new population list...
-    new_population = list()
+    # --- Keep top E elites if elitism > 0 ---
+    if elitism > 0:
+        elite_indices = np.argsort(fitness)[-elitism:]
+        elites = [old_population[i] for i in elite_indices]
+    else:
+        elites = []
 
-    for _ in range(N):
-        # --- Select parents ---
+    new_population = []
+
+    # Copy elites directly (deepcopy chromosomes)
+    for elite in elites:
+        clone = Snake(nPercepts, actions)
+        clone.chromosome = elite.chromosome.copy()
+        new_population.append(clone)
+
+    # --- Generate rest of population ---
+    while len(new_population) < N:
+        # Parent selection
         parent1_chrom = tournament_selection(old_population, fitness, tournament_k)
         parent2_chrom = tournament_selection(old_population, fitness, tournament_k)
 
-        # --- Crossover ---
+        # One-point crossover
         crossover_point = random.randint(1, len(parent1_chrom)-1)
-        child_chrom = np.concatenate([parent1_chrom[:crossover_point], 
-                                      parent2_chrom[crossover_point:]])
+        child_chrom = np.concatenate([
+            parent1_chrom[:crossover_point],
+            parent2_chrom[crossover_point:]
+        ])
 
-        # --- Mutation ---
+        # Mutation
         if random.random() < mutation_rate:
             mutation_point = random.randint(0, len(child_chrom)-1)
-            # Small Gaussian mutation
             child_chrom[mutation_point] += np.random.randn() * 0.1
 
-        # --- Create new snake with this chromosome ---
+        # New snake
         new_snake = Snake(nPercepts, actions)
         new_snake.chromosome = child_chrom
-
-
-        # Add the new snake to the new population
         new_population.append(new_snake)
-
-    # At the end you need to compute the average fitness and return it along with your new population
-    avg_fitness = np.mean(fitness)
 
     return (new_population, avg_fitness)
